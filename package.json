@@ -1,0 +1,40 @@
+{
+  "name": "@skhatri/mcps",
+  "version": "1.0.0",
+  "description": "Multi-module MCP (Model Context Protocol) packages collection",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces",
+    "lint": "npm run lint --workspaces",
+    "clean": "npm run clean --workspaces",
+    "publish-all": "npm run publish --workspaces"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "eslint": "^8.0.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/skhatri/mcps.git"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "ai",
+    "tools"
+  ],
+  "author": "skhatri",
+  "license": "MIT",
+  "dependencies": {
+    "@skhatri/mcps": "file:skhatri-mcps-1.0.0.tgz"
+  }
+}

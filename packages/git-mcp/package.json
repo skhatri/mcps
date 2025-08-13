@@ -1,6 +1,6 @@
 {
   "name": "@skhatri/git-mcp",
-  "version": "1.0.1",
+  "version": "0.2.0",
   "description": "MCP (Model Context Protocol) server for Git operations",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

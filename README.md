@@ -7,6 +7,8 @@ Multi-module MCP (Model Context Protocol) packages collection.
 - **[@skhatri/file-mcp](./packages/file-mcp)**: File operations MCP server with automatic logging
 - **[@skhatri/date-mcp](./packages/date-mcp)**: Date and time operations MCP server
 - **[@skhatri/git-mcp](./packages/git-mcp)**: Git operations MCP server for version control
+- **[@skhatri/github-mcp](./packages/github-mcp)**: Issues, PR for Github
+- **[@skhatri/maven-artifact-mcp](./packages/maven-artifact-mcp)**: Enquire about new versions of artifacts in maven repository
 
 ## Development
 

@@ -1,6 +1,6 @@
 {
   "name": "@skhatri/file-mcp",
-  "version": "0.1.0",
+  "version": "1.0.1",
   "description": "MCP (Model Context Protocol) server for file operations",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -10,7 +10,8 @@
     "test": "jest",
     "lint": "eslint src/**/*.ts",
     "clean": "rimraf dist",
-    "prepublishOnly": "npm run clean && npm run build"
+    "prepublishOnly": "npm run clean && npm run build",
+    "publish": "npm publish"
   },
   "files": [
     "dist/",
@@ -42,5 +43,8 @@
     "type": "git",
     "url": "https://github.com/skhatri/mcps.git",
     "directory": "packages/file-mcp"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

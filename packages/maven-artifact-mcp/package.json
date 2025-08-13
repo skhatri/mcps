@@ -1,6 +1,6 @@
 {
   "name": "@skhatri/maven-artifact-mcp",
-  "version": "0.1.0",
+  "version": "1.0.1",
   "description": "MCP Server for resolving Maven2 module versions with caching and logging",
   "main": "dist/index.js",
   "type": "module",
@@ -22,7 +22,8 @@
     "test:ci": "jest --coverage --ci --watchAll=false",
     "link:local": "npm run build && npm link",
     "setup:cursor": "npm run build && npm link && echo 'Ready for Cursor! Use maven-mcp command.'",
-    "test:server": "npm run build && node dist/index.js --stdio"
+    "test:server": "npm run build && node dist/index.js --stdio",
+    "publish": "npm publish"
   },
   "keywords": [
     "mcp",

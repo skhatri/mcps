@@ -1,6 +1,6 @@
 {
   "name": "@skhatri/mcps",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Multi-module MCP (Model Context Protocol) packages collection",
   "private": true,
   "workspaces": [
@@ -11,7 +11,15 @@
     "test": "npm run test --workspaces",
     "lint": "npm run lint --workspaces",
     "clean": "npm run clean --workspaces",
-    "publish-all": "npm run publish --workspaces"
+    "publish-all": "npm publish --workspaces",
+    "version-patch": "npm version patch --workspaces",
+    "version-minor": "npm version minor --workspaces",
+    "version-major": "npm version major --workspaces",
+    "sync-versions": "node scripts/sync-versions.js",
+    "set-version": "node scripts/sync-versions.js",
+    "version-bump-patch": "npm version patch && npm run sync-versions",
+    "version-bump-minor": "npm version minor && npm run sync-versions",
+    "version-bump-major": "npm version major && npm run sync-versions"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

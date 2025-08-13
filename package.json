@@ -1,6 +1,6 @@
 {
   "name": "@skhatri/mcps",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Multi-module MCP (Model Context Protocol) packages collection",
   "private": true,
   "workspaces": [

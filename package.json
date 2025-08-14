@@ -43,6 +43,6 @@
   "author": "skhatri",
   "license": "MIT",
   "dependencies": {
-    "@skhatri/mcps": "file:skhatri-mcps-1.0.0.tgz"
+    "crudjson": "^0.0.2"
   }
 }

@@ -15,6 +15,7 @@ dotenv.config();
 class GitHubMCPServer {
   private server: Server;
   private octokit: Octokit;
+  private defaultOwner?: string;
 
   constructor() {
     this.server = new Server(
@@ -34,12 +35,26 @@ class GitHubMCPServer {
       throw new Error('GITHUB_TOKEN environment variable is required');
     }
 
+    this.defaultOwner = process.env.OWNER;
+
     this.octokit = new Octokit({
       auth: githubToken,
       authStrategy: undefined,
     });
 
     this.setupToolHandlers();
+  }
+
+  private resolveOwner(providedOwner?: string): string {
+    if (providedOwner) {
+      return providedOwner;
+    }
+    
+    if (this.defaultOwner) {
+      return this.defaultOwner;
+    }
+    
+    throw new Error('Owner parameter is required. Either provide owner in the request or set OWNER environment variable.');
   }
 
   private setupToolHandlers() {
@@ -54,7 +69,7 @@ class GitHubMCPServer {
               properties: {
                 owner: {
                   type: 'string',
-                  description: 'Repository owner',
+                  description: 'Repository owner (optional if OWNER env var is set)',
                 },
                 repo: {
                   type: 'string',
@@ -72,7 +87,7 @@ class GitHubMCPServer {
                   default: 30,
                 },
               },
-              required: ['owner', 'repo'],
+              required: ['repo'],
             },
           },
           {
@@ -83,7 +98,7 @@ class GitHubMCPServer {
               properties: {
                 owner: {
                   type: 'string',
-                  description: 'Repository owner',
+                  description: 'Repository owner (optional if OWNER env var is set)',
                 },
                 repo: {
                   type: 'string',
@@ -94,7 +109,7 @@ class GitHubMCPServer {
                   description: 'Pull request number',
                 },
               },
-              required: ['owner', 'repo', 'pull_number'],
+              required: ['repo', 'pull_number'],
             },
           },
           {
@@ -105,7 +120,7 @@ class GitHubMCPServer {
               properties: {
                 owner: {
                   type: 'string',
-                  description: 'Repository owner',
+                  description: 'Repository owner (optional if OWNER env var is set)',
                 },
                 repo: {
                   type: 'string',
@@ -116,7 +131,28 @@ class GitHubMCPServer {
                   description: 'Pull request number',
                 },
               },
-              required: ['owner', 'repo', 'pull_number'],
+              required: ['repo', 'pull_number'],
+            },
+          },
+          {
+            name: 'list_pull_requests_for_review',
+            description: 'List pull requests that are assigned for review to the authenticated user',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                state: {
+                  type: 'string',
+                  enum: ['open', 'closed', 'all'],
+                  description: 'PR state filter',
+                  default: 'open',
+                },
+                per_page: {
+                  type: 'number',
+                  description: 'Number of results per page (max 100)',
+                  default: 30,
+                },
+              },
+              required: [],
             },
           },
           {
@@ -127,7 +163,7 @@ class GitHubMCPServer {
               properties: {
                 owner: {
                   type: 'string',
-                  description: 'Repository owner',
+                  description: 'Repository owner (optional if OWNER env var is set)',
                 },
                 repo: {
                   type: 'string',
@@ -155,7 +191,7 @@ class GitHubMCPServer {
                   default: false,
                 },
               },
-              required: ['owner', 'repo', 'title', 'head', 'base'],
+              required: ['repo', 'title', 'head', 'base'],
             },
           },
           {
@@ -166,7 +202,7 @@ class GitHubMCPServer {
               properties: {
                 owner: {
                   type: 'string',
-                  description: 'Repository owner',
+                  description: 'Repository owner (optional if OWNER env var is set)',
                 },
                 repo: {
                   type: 'string',
@@ -193,7 +229,7 @@ class GitHubMCPServer {
                   description: 'Line number for comment (1-based)',
                 },
               },
-              required: ['owner', 'repo', 'pull_number', 'body', 'commit_id', 'path', 'line'],
+              required: ['repo', 'pull_number', 'body', 'commit_id', 'path', 'line'],
             },
           },
           {
@@ -204,7 +240,7 @@ class GitHubMCPServer {
               properties: {
                 owner: {
                   type: 'string',
-                  description: 'Repository owner',
+                  description: 'Repository owner (optional if OWNER env var is set)',
                 },
                 repo: {
                   type: 'string',
@@ -219,7 +255,7 @@ class GitHubMCPServer {
                   description: 'Optional review message',
                 },
               },
-              required: ['owner', 'repo', 'pull_number'],
+              required: ['repo', 'pull_number'],
             },
           },
           {
@@ -228,7 +264,7 @@ class GitHubMCPServer {
             inputSchema: {
               type: 'object',
               properties: {
-                owner: { type: 'string', description: 'Repository owner' },
+                owner: { type: 'string', description: 'Repository owner (optional if OWNER env var is set)' },
                 repo: { type: 'string', description: 'Repository name' },
                 title: { type: 'string', description: 'Issue title' },
                 body: { type: 'string', description: 'Issue description' },
@@ -236,7 +272,7 @@ class GitHubMCPServer {
                 milestone: { type: 'number', description: 'Milestone number' },
                 labels: { type: 'array', items: { type: 'string' }, description: 'Label names' },
               },
-              required: ['owner', 'repo', 'title'],
+              required: ['repo', 'title'],
             },
           },
           {
@@ -245,7 +281,7 @@ class GitHubMCPServer {
             inputSchema: {
               type: 'object',
               properties: {
-                owner: { type: 'string', description: 'Repository owner' },
+                owner: { type: 'string', description: 'Repository owner (optional if OWNER env var is set)' },
                 repo: { type: 'string', description: 'Repository name' },
                 state: { type: 'string', enum: ['open', 'closed', 'all'], description: 'Issue state', default: 'open' },
                 labels: { type: 'string', description: 'Comma-separated label names' },
@@ -253,7 +289,7 @@ class GitHubMCPServer {
                 milestone: { type: 'string', description: 'Milestone title or number' },
                 per_page: { type: 'number', description: 'Results per page (max 100)', default: 30 },
               },
-              required: ['owner', 'repo'],
+              required: ['repo'],
             },
           },
           {
@@ -262,11 +298,11 @@ class GitHubMCPServer {
             inputSchema: {
               type: 'object',
               properties: {
-                owner: { type: 'string', description: 'Repository owner' },
+                owner: { type: 'string', description: 'Repository owner (optional if OWNER env var is set)' },
                 repo: { type: 'string', description: 'Repository name' },
                 issue_number: { type: 'number', description: 'Issue number' },
               },
-              required: ['owner', 'repo', 'issue_number'],
+              required: ['repo', 'issue_number'],
             },
           },
           {
@@ -275,7 +311,7 @@ class GitHubMCPServer {
             inputSchema: {
               type: 'object',
               properties: {
-                owner: { type: 'string', description: 'Repository owner' },
+                owner: { type: 'string', description: 'Repository owner (optional if OWNER env var is set)' },
                 repo: { type: 'string', description: 'Repository name' },
                 issue_number: { type: 'number', description: 'Issue number' },
                 title: { type: 'string', description: 'Issue title' },
@@ -284,7 +320,7 @@ class GitHubMCPServer {
                 assignees: { type: 'array', items: { type: 'string' }, description: 'Usernames to assign' },
                 labels: { type: 'array', items: { type: 'string' }, description: 'Label names' },
               },
-              required: ['owner', 'repo', 'issue_number'],
+              required: ['repo', 'issue_number'],
             },
           },
           {
@@ -293,12 +329,12 @@ class GitHubMCPServer {
             inputSchema: {
               type: 'object',
               properties: {
-                owner: { type: 'string', description: 'Repository owner' },
+                owner: { type: 'string', description: 'Repository owner (optional if OWNER env var is set)' },
                 repo: { type: 'string', description: 'Repository name' },
                 issue_number: { type: 'number', description: 'Issue number' },
                 reason: { type: 'string', enum: ['completed', 'not_planned'], description: 'Reason for closing' },
               },
-              required: ['owner', 'repo', 'issue_number'],
+              required: ['repo', 'issue_number'],
             },
           },
           {
@@ -307,12 +343,12 @@ class GitHubMCPServer {
             inputSchema: {
               type: 'object',
               properties: {
-                owner: { type: 'string', description: 'Repository owner' },
+                owner: { type: 'string', description: 'Repository owner (optional if OWNER env var is set)' },
                 repo: { type: 'string', description: 'Repository name' },
                 issue_number: { type: 'number', description: 'Issue number' },
                 body: { type: 'string', description: 'Comment text' },
               },
-              required: ['owner', 'repo', 'issue_number', 'body'],
+              required: ['repo', 'issue_number', 'body'],
             },
           },
           {
@@ -321,10 +357,10 @@ class GitHubMCPServer {
             inputSchema: {
               type: 'object',
               properties: {
-                owner: { type: 'string', description: 'Repository owner' },
+                owner: { type: 'string', description: 'Repository owner (optional if OWNER env var is set)' },
                 repo: { type: 'string', description: 'Repository name' },
               },
-              required: ['owner', 'repo'],
+              required: ['repo'],
             },
           },
           {
@@ -333,13 +369,13 @@ class GitHubMCPServer {
             inputSchema: {
               type: 'object',
               properties: {
-                owner: { type: 'string', description: 'Repository owner' },
+                owner: { type: 'string', description: 'Repository owner (optional if OWNER env var is set)' },
                 repo: { type: 'string', description: 'Repository name' },
                 sha: { type: 'string', description: 'Branch, tag, or commit SHA' },
                 path: { type: 'string', description: 'File path to filter commits' },
                 per_page: { type: 'number', description: 'Results per page (max 100)', default: 30 },
               },
-              required: ['owner', 'repo'],
+              required: ['repo'],
             },
           },
           {
@@ -348,11 +384,11 @@ class GitHubMCPServer {
             inputSchema: {
               type: 'object',
               properties: {
-                owner: { type: 'string', description: 'Repository owner' },
+                owner: { type: 'string', description: 'Repository owner (optional if OWNER env var is set)' },
                 repo: { type: 'string', description: 'Repository name' },
                 ref: { type: 'string', description: 'Commit SHA' },
               },
-              required: ['owner', 'repo', 'ref'],
+              required: ['repo', 'ref'],
             },
           },
           {
@@ -361,12 +397,12 @@ class GitHubMCPServer {
             inputSchema: {
               type: 'object',
               properties: {
-                owner: { type: 'string', description: 'Repository owner' },
+                owner: { type: 'string', description: 'Repository owner (optional if OWNER env var is set)' },
                 repo: { type: 'string', description: 'Repository name' },
                 protected: { type: 'boolean', description: 'Filter by protection status' },
                 per_page: { type: 'number', description: 'Results per page (max 100)', default: 30 },
               },
-              required: ['owner', 'repo'],
+              required: ['repo'],
             },
           },
           {
@@ -375,12 +411,12 @@ class GitHubMCPServer {
             inputSchema: {
               type: 'object',
               properties: {
-                owner: { type: 'string', description: 'Repository owner' },
+                owner: { type: 'string', description: 'Repository owner (optional if OWNER env var is set)' },
                 repo: { type: 'string', description: 'Repository name' },
                 ref: { type: 'string', description: 'New branch name (refs/heads/branch-name)' },
                 sha: { type: 'string', description: 'SHA to create branch from' },
               },
-              required: ['owner', 'repo', 'ref', 'sha'],
+              required: ['repo', 'ref', 'sha'],
             },
           },
           {
@@ -389,12 +425,12 @@ class GitHubMCPServer {
             inputSchema: {
               type: 'object',
               properties: {
-                owner: { type: 'string', description: 'Repository owner' },
+                owner: { type: 'string', description: 'Repository owner (optional if OWNER env var is set)' },
                 repo: { type: 'string', description: 'Repository name' },
                 path: { type: 'string', description: 'File path' },
                 ref: { type: 'string', description: 'Branch, tag, or commit SHA', default: 'main' },
               },
-              required: ['owner', 'repo', 'path'],
+              required: ['repo', 'path'],
             },
           },
           {
@@ -403,7 +439,7 @@ class GitHubMCPServer {
             inputSchema: {
               type: 'object',
               properties: {
-                owner: { type: 'string', description: 'Repository owner' },
+                owner: { type: 'string', description: 'Repository owner (optional if OWNER env var is set)' },
                 repo: { type: 'string', description: 'Repository name' },
                 path: { type: 'string', description: 'File path' },
                 message: { type: 'string', description: 'Commit message' },
@@ -411,7 +447,7 @@ class GitHubMCPServer {
                 sha: { type: 'string', description: 'SHA of file being replaced (for updates)' },
                 branch: { type: 'string', description: 'Branch name', default: 'main' },
               },
-              required: ['owner', 'repo', 'path', 'message', 'content'],
+              required: ['repo', 'path', 'message', 'content'],
             },
           },
           {
@@ -420,13 +456,13 @@ class GitHubMCPServer {
             inputSchema: {
               type: 'object',
               properties: {
-                owner: { type: 'string', description: 'Repository owner' },
+                owner: { type: 'string', description: 'Repository owner (optional if OWNER env var is set)' },
                 repo: { type: 'string', description: 'Repository name' },
                 pull_number: { type: 'number', description: 'Pull request number' },
                 reviewers: { type: 'array', items: { type: 'string' }, description: 'Usernames to request reviews from' },
                 team_reviewers: { type: 'array', items: { type: 'string' }, description: 'Team names to request reviews from' },
               },
-              required: ['owner', 'repo', 'pull_number'],
+              required: ['repo', 'pull_number'],
             },
           },
           {
@@ -435,13 +471,13 @@ class GitHubMCPServer {
             inputSchema: {
               type: 'object',
               properties: {
-                owner: { type: 'string', description: 'Repository owner' },
+                owner: { type: 'string', description: 'Repository owner (optional if OWNER env var is set)' },
                 repo: { type: 'string', description: 'Repository name' },
                 pull_number: { type: 'number', description: 'Pull request number' },
                 event: { type: 'string', enum: ['APPROVE', 'REQUEST_CHANGES', 'COMMENT'], description: 'Review action' },
                 body: { type: 'string', description: 'Review summary comment' },
               },
-              required: ['owner', 'repo', 'pull_number', 'event'],
+              required: ['repo', 'pull_number', 'event'],
             },
           },
           {
@@ -450,11 +486,11 @@ class GitHubMCPServer {
             inputSchema: {
               type: 'object',
               properties: {
-                owner: { type: 'string', description: 'Repository owner' },
+                owner: { type: 'string', description: 'Repository owner (optional if OWNER env var is set)' },
                 repo: { type: 'string', description: 'Repository name' },
                 pull_number: { type: 'number', description: 'Pull request number' },
               },
-              required: ['owner', 'repo', 'pull_number'],
+              required: ['repo', 'pull_number'],
             },
           },
           {
@@ -463,11 +499,11 @@ class GitHubMCPServer {
             inputSchema: {
               type: 'object',
               properties: {
-                owner: { type: 'string', description: 'Repository owner' },
+                owner: { type: 'string', description: 'Repository owner (optional if OWNER env var is set)' },
                 repo: { type: 'string', description: 'Repository name' },
                 per_page: { type: 'number', description: 'Results per page (max 100)', default: 30 },
               },
-              required: ['owner', 'repo'],
+              required: ['repo'],
             },
           },
           {
@@ -476,13 +512,13 @@ class GitHubMCPServer {
             inputSchema: {
               type: 'object',
               properties: {
-                owner: { type: 'string', description: 'Repository owner' },
+                owner: { type: 'string', description: 'Repository owner (optional if OWNER env var is set)' },
                 repo: { type: 'string', description: 'Repository name' },
                 name: { type: 'string', description: 'Label name' },
                 color: { type: 'string', description: 'Hex color code without #' },
                 description: { type: 'string', description: 'Label description' },
               },
-              required: ['owner', 'repo', 'name', 'color'],
+              required: ['repo', 'name', 'color'],
             },
           },
           {
@@ -491,12 +527,12 @@ class GitHubMCPServer {
             inputSchema: {
               type: 'object',
               properties: {
-                owner: { type: 'string', description: 'Repository owner' },
+                owner: { type: 'string', description: 'Repository owner (optional if OWNER env var is set)' },
                 repo: { type: 'string', description: 'Repository name' },
                 state: { type: 'string', enum: ['open', 'closed', 'all'], description: 'Milestone state', default: 'open' },
                 per_page: { type: 'number', description: 'Results per page (max 100)', default: 30 },
               },
-              required: ['owner', 'repo'],
+              required: ['repo'],
             },
           },
           {
@@ -505,13 +541,13 @@ class GitHubMCPServer {
             inputSchema: {
               type: 'object',
               properties: {
-                owner: { type: 'string', description: 'Repository owner' },
+                owner: { type: 'string', description: 'Repository owner (optional if OWNER env var is set)' },
                 repo: { type: 'string', description: 'Repository name' },
                 title: { type: 'string', description: 'Milestone title' },
                 description: { type: 'string', description: 'Milestone description' },
                 due_on: { type: 'string', description: 'Due date (ISO 8601 format)' },
               },
-              required: ['owner', 'repo', 'title'],
+              required: ['repo', 'title'],
             },
           },
           {
@@ -520,12 +556,12 @@ class GitHubMCPServer {
             inputSchema: {
               type: 'object',
               properties: {
-                owner: { type: 'string', description: 'Repository owner' },
+                owner: { type: 'string', description: 'Repository owner (optional if OWNER env var is set)' },
                 repo: { type: 'string', description: 'Repository name' },
                 affiliation: { type: 'string', enum: ['outside', 'direct', 'all'], description: 'Filter by affiliation', default: 'all' },
                 per_page: { type: 'number', description: 'Results per page (max 100)', default: 30 },
               },
-              required: ['owner', 'repo'],
+              required: ['repo'],
             },
           },
           {
@@ -534,11 +570,11 @@ class GitHubMCPServer {
             inputSchema: {
               type: 'object',
               properties: {
-                owner: { type: 'string', description: 'Repository owner' },
+                owner: { type: 'string', description: 'Repository owner (optional if OWNER env var is set)' },
                 repo: { type: 'string', description: 'Repository name' },
                 username: { type: 'string', description: 'Username to check' },
               },
-              required: ['owner', 'repo', 'username'],
+              required: ['repo', 'username'],
             },
           },
           {
@@ -547,12 +583,12 @@ class GitHubMCPServer {
             inputSchema: {
               type: 'object',
               properties: {
-                owner: { type: 'string', description: 'Repository owner' },
+                owner: { type: 'string', description: 'Repository owner (optional if OWNER env var is set)' },
                 repo: { type: 'string', description: 'Repository name' },
                 issue_number: { type: 'number', description: 'Issue number' },
                 assignees: { type: 'array', items: { type: 'string' }, description: 'Usernames to assign' },
               },
-              required: ['owner', 'repo', 'issue_number', 'assignees'],
+              required: ['repo', 'issue_number', 'assignees'],
             },
           },
           {
@@ -603,11 +639,11 @@ class GitHubMCPServer {
             inputSchema: {
               type: 'object',
               properties: {
-                owner: { type: 'string', description: 'Repository owner' },
+                owner: { type: 'string', description: 'Repository owner (optional if OWNER env var is set)' },
                 repo: { type: 'string', description: 'Repository name' },
                 per_page: { type: 'number', description: 'Results per page (max 100)', default: 30 },
               },
-              required: ['owner', 'repo'],
+              required: ['repo'],
             },
           },
           {
@@ -616,13 +652,13 @@ class GitHubMCPServer {
             inputSchema: {
               type: 'object',
               properties: {
-                owner: { type: 'string', description: 'Repository owner' },
+                owner: { type: 'string', description: 'Repository owner (optional if OWNER env var is set)' },
                 repo: { type: 'string', description: 'Repository name' },
                 workflow_id: { type: 'string', description: 'Workflow ID or filename' },
                 ref: { type: 'string', description: 'Git reference (branch or tag)' },
                 inputs: { type: 'object', description: 'Input parameters for workflow', additionalProperties: true },
               },
-              required: ['owner', 'repo', 'workflow_id', 'ref'],
+              required: ['repo', 'workflow_id', 'ref'],
             },
           },
         ] as Tool[],
@@ -636,6 +672,8 @@ class GitHubMCPServer {
         switch (name) {
           case 'list_pull_requests':
             return await this.listPullRequests(args as any);
+          case 'list_pull_requests_for_review':
+            return await this.listPullRequestsForReview(args as any);
           case 'get_pull_request':
             return await this.getPullRequest(args as any);
           case 'get_pull_request_files':
@@ -720,13 +758,14 @@ class GitHubMCPServer {
   }
 
   private async listPullRequests(args: {
-    owner: string;
+    owner?: string;
     repo: string;
     state?: 'open' | 'closed' | 'all';
     per_page?: number;
   }) {
+    const owner = this.resolveOwner(args.owner);
     const { data: pullRequests } = await this.octokit.rest.pulls.list({
-      owner: args.owner,
+      owner,
       repo: args.repo,
       state: args.state || 'open',
       per_page: args.per_page || 30,
@@ -754,13 +793,47 @@ class GitHubMCPServer {
     };
   }
 
+  private async listPullRequestsForReview(args: {
+    state?: 'open' | 'closed' | 'all';
+    per_page?: number;
+  }) {
+    const { data: result } = await this.octokit.rest.search.issuesAndPullRequests({
+      q: `type:pr state:${args.state || 'open'} review-requested:@me`,
+      per_page: args.per_page || 30,
+    });
+
+    const summary = result.items.map(pr => ({
+      number: pr.number,
+      title: pr.title,
+      author: pr.user?.login,
+      state: pr.state,
+      created_at: pr.created_at,
+      updated_at: pr.updated_at,
+      url: pr.html_url,
+      repository: pr.repository_url ? pr.repository_url.split('/').slice(-2).join('/') : 'unknown',
+    }));
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            total_count: result.total_count,
+            pull_requests: summary
+          }, null, 2),
+        },
+      ],
+    };
+  }
+
   private async getPullRequest(args: {
-    owner: string;
+    owner?: string;
     repo: string;
     pull_number: number;
   }) {
+    const owner = this.resolveOwner(args.owner);
     const { data: pr } = await this.octokit.rest.pulls.get({
-      owner: args.owner,
+      owner,
       repo: args.repo,
       pull_number: args.pull_number,
     });
@@ -795,12 +868,13 @@ class GitHubMCPServer {
   }
 
   private async getPullRequestFiles(args: {
-    owner: string;
+    owner?: string;
     repo: string;
     pull_number: number;
   }) {
+    const owner = this.resolveOwner(args.owner);
     const { data: files } = await this.octokit.rest.pulls.listFiles({
-      owner: args.owner,
+      owner,
       repo: args.repo,
       pull_number: args.pull_number,
     });
@@ -825,7 +899,7 @@ class GitHubMCPServer {
   }
 
   private async createPullRequest(args: {
-    owner: string;
+    owner?: string;
     repo: string;
     title: string;
     head: string;
@@ -833,8 +907,9 @@ class GitHubMCPServer {
     body?: string;
     draft?: boolean;
   }) {
+    const owner = this.resolveOwner(args.owner);
     const { data: pr } = await this.octokit.rest.pulls.create({
-      owner: args.owner,
+      owner,
       repo: args.repo,
       title: args.title,
       head: args.head,
@@ -854,7 +929,7 @@ class GitHubMCPServer {
   }
 
   private async addReviewComment(args: {
-    owner: string;
+    owner?: string;
     repo: string;
     pull_number: number;
     body: string;
@@ -862,8 +937,9 @@ class GitHubMCPServer {
     path: string;
     line: number;
   }) {
+    const owner = this.resolveOwner(args.owner);
     const { data: comment } = await this.octokit.rest.pulls.createReviewComment({
-      owner: args.owner,
+      owner,
       repo: args.repo,
       pull_number: args.pull_number,
       body: args.body,
@@ -883,13 +959,14 @@ class GitHubMCPServer {
   }
 
   private async approvePullRequest(args: {
-    owner: string;
+    owner?: string;
     repo: string;
     pull_number: number;
     body?: string;
   }) {
+    const owner = this.resolveOwner(args.owner);
     const { data: review } = await this.octokit.rest.pulls.createReview({
-      owner: args.owner,
+      owner,
       repo: args.repo,
       pull_number: args.pull_number,
       event: 'APPROVE',
@@ -907,7 +984,7 @@ class GitHubMCPServer {
   }
 
   private async createIssue(args: {
-    owner: string;
+    owner?: string;
     repo: string;
     title: string;
     body?: string;
@@ -915,8 +992,9 @@ class GitHubMCPServer {
     milestone?: number;
     labels?: string[];
   }) {
+    const owner = this.resolveOwner(args.owner);
     const { data: issue } = await this.octokit.rest.issues.create({
-      owner: args.owner,
+      owner,
       repo: args.repo,
       title: args.title,
       body: args.body,
@@ -936,7 +1014,7 @@ class GitHubMCPServer {
   }
 
   private async listIssues(args: {
-    owner: string;
+    owner?: string;
     repo: string;
     state?: 'open' | 'closed' | 'all';
     labels?: string;
@@ -944,8 +1022,9 @@ class GitHubMCPServer {
     milestone?: string;
     per_page?: number;
   }) {
+    const owner = this.resolveOwner(args.owner);
     const { data: issues } = await this.octokit.rest.issues.listForRepo({
-      owner: args.owner,
+      owner,
       repo: args.repo,
       state: args.state || 'open',
       labels: args.labels,
@@ -977,12 +1056,13 @@ class GitHubMCPServer {
   }
 
   private async getIssue(args: {
-    owner: string;
+    owner?: string;
     repo: string;
     issue_number: number;
   }) {
+    const owner = this.resolveOwner(args.owner);
     const { data: issue } = await this.octokit.rest.issues.get({
-      owner: args.owner,
+      owner,
       repo: args.repo,
       issue_number: args.issue_number,
     });
@@ -1013,7 +1093,7 @@ class GitHubMCPServer {
   }
 
   private async updateIssue(args: {
-    owner: string;
+    owner?: string;
     repo: string;
     issue_number: number;
     title?: string;
@@ -1022,8 +1102,9 @@ class GitHubMCPServer {
     assignees?: string[];
     labels?: string[];
   }) {
+    const owner = this.resolveOwner(args.owner);
     const { data: issue } = await this.octokit.rest.issues.update({
-      owner: args.owner,
+      owner,
       repo: args.repo,
       issue_number: args.issue_number,
       title: args.title,
@@ -1044,13 +1125,14 @@ class GitHubMCPServer {
   }
 
   private async closeIssue(args: {
-    owner: string;
+    owner?: string;
     repo: string;
     issue_number: number;
     reason?: 'completed' | 'not_planned';
   }) {
+    const owner = this.resolveOwner(args.owner);
     const { data: issue } = await this.octokit.rest.issues.update({
-      owner: args.owner,
+      owner,
       repo: args.repo,
       issue_number: args.issue_number,
       state: 'closed',
@@ -1068,13 +1150,14 @@ class GitHubMCPServer {
   }
 
   private async addIssueComment(args: {
-    owner: string;
+    owner?: string;
     repo: string;
     issue_number: number;
     body: string;
   }) {
+    const owner = this.resolveOwner(args.owner);
     const { data: comment } = await this.octokit.rest.issues.createComment({
-      owner: args.owner,
+      owner,
       repo: args.repo,
       issue_number: args.issue_number,
       body: args.body,
@@ -1091,11 +1174,12 @@ class GitHubMCPServer {
   }
 
   private async getRepository(args: {
-    owner: string;
+    owner?: string;
     repo: string;
   }) {
+    const owner = this.resolveOwner(args.owner);
     const { data: repo } = await this.octokit.rest.repos.get({
-      owner: args.owner,
+      owner,
       repo: args.repo,
     });
 
@@ -1130,14 +1214,15 @@ class GitHubMCPServer {
   }
 
   private async listCommits(args: {
-    owner: string;
+    owner?: string;
     repo: string;
     sha?: string;
     path?: string;
     per_page?: number;
   }) {
+    const owner = this.resolveOwner(args.owner);
     const { data: commits } = await this.octokit.rest.repos.listCommits({
-      owner: args.owner,
+      owner,
       repo: args.repo,
       sha: args.sha,
       path: args.path,
@@ -1171,12 +1256,13 @@ class GitHubMCPServer {
   }
 
   private async getCommit(args: {
-    owner: string;
+    owner?: string;
     repo: string;
     ref: string;
   }) {
+    const owner = this.resolveOwner(args.owner);
     const { data: commit } = await this.octokit.rest.repos.getCommit({
-      owner: args.owner,
+      owner,
       repo: args.repo,
       ref: args.ref,
     });
@@ -1212,13 +1298,14 @@ class GitHubMCPServer {
   }
 
   private async listBranches(args: {
-    owner: string;
+    owner?: string;
     repo: string;
     protected?: boolean;
     per_page?: number;
   }) {
+    const owner = this.resolveOwner(args.owner);
     const { data: branches } = await this.octokit.rest.repos.listBranches({
-      owner: args.owner,
+      owner,
       repo: args.repo,
       protected: args.protected,
       per_page: args.per_page || 30,
@@ -1244,13 +1331,14 @@ class GitHubMCPServer {
   }
 
   private async createBranch(args: {
-    owner: string;
+    owner?: string;
     repo: string;
     ref: string;
     sha: string;
   }) {
+    const owner = this.resolveOwner(args.owner);
     const { data: ref } = await this.octokit.rest.git.createRef({
-      owner: args.owner,
+      owner,
       repo: args.repo,
       ref: args.ref,
       sha: args.sha,
@@ -1267,13 +1355,14 @@ class GitHubMCPServer {
   }
 
   private async getFileContent(args: {
-    owner: string;
+    owner?: string;
     repo: string;
     path: string;
     ref?: string;
   }) {
+    const owner = this.resolveOwner(args.owner);
     const { data: file } = await this.octokit.rest.repos.getContent({
-      owner: args.owner,
+      owner,
       repo: args.repo,
       path: args.path,
       ref: args.ref,
@@ -1305,7 +1394,7 @@ class GitHubMCPServer {
   }
 
   private async updateFile(args: {
-    owner: string;
+    owner?: string;
     repo: string;
     path: string;
     message: string;
@@ -1313,8 +1402,9 @@ class GitHubMCPServer {
     sha?: string;
     branch?: string;
   }) {
+    const owner = this.resolveOwner(args.owner);
     const { data: result } = await this.octokit.rest.repos.createOrUpdateFileContents({
-      owner: args.owner,
+      owner,
       repo: args.repo,
       path: args.path,
       message: args.message,
@@ -1334,14 +1424,15 @@ class GitHubMCPServer {
   }
 
   private async requestReview(args: {
-    owner: string;
+    owner?: string;
     repo: string;
     pull_number: number;
     reviewers?: string[];
     team_reviewers?: string[];
   }) {
+    const owner = this.resolveOwner(args.owner);
     const { data: result } = await this.octokit.rest.pulls.requestReviewers({
-      owner: args.owner,
+      owner,
       repo: args.repo,
       pull_number: args.pull_number,
       reviewers: args.reviewers,
@@ -1359,14 +1450,15 @@ class GitHubMCPServer {
   }
 
   private async submitReview(args: {
-    owner: string;
+    owner?: string;
     repo: string;
     pull_number: number;
     event: 'APPROVE' | 'REQUEST_CHANGES' | 'COMMENT';
     body?: string;
   }) {
+    const owner = this.resolveOwner(args.owner);
     const { data: review } = await this.octokit.rest.pulls.createReview({
-      owner: args.owner,
+      owner,
       repo: args.repo,
       pull_number: args.pull_number,
       event: args.event,
@@ -1384,12 +1476,13 @@ class GitHubMCPServer {
   }
 
   private async listReviewComments(args: {
-    owner: string;
+    owner?: string;
     repo: string;
     pull_number: number;
   }) {
+    const owner = this.resolveOwner(args.owner);
     const { data: comments } = await this.octokit.rest.pulls.listReviewComments({
-      owner: args.owner,
+      owner,
       repo: args.repo,
       pull_number: args.pull_number,
     });
@@ -1416,12 +1509,13 @@ class GitHubMCPServer {
   }
 
   private async listLabels(args: {
-    owner: string;
+    owner?: string;
     repo: string;
     per_page?: number;
   }) {
+    const owner = this.resolveOwner(args.owner);
     const { data: labels } = await this.octokit.rest.issues.listLabelsForRepo({
-      owner: args.owner,
+      owner,
       repo: args.repo,
       per_page: args.per_page || 30,
     });
@@ -1444,14 +1538,15 @@ class GitHubMCPServer {
   }
 
   private async createLabel(args: {
-    owner: string;
+    owner?: string;
     repo: string;
     name: string;
     color: string;
     description?: string;
   }) {
+    const owner = this.resolveOwner(args.owner);
     const { data: label } = await this.octokit.rest.issues.createLabel({
-      owner: args.owner,
+      owner,
       repo: args.repo,
       name: args.name,
       color: args.color,
@@ -1469,13 +1564,14 @@ class GitHubMCPServer {
   }
 
   private async listMilestones(args: {
-    owner: string;
+    owner?: string;
     repo: string;
     state?: 'open' | 'closed' | 'all';
     per_page?: number;
   }) {
+    const owner = this.resolveOwner(args.owner);
     const { data: milestones } = await this.octokit.rest.issues.listMilestones({
-      owner: args.owner,
+      owner,
       repo: args.repo,
       state: args.state || 'open',
       per_page: args.per_page || 30,
@@ -1505,14 +1601,15 @@ class GitHubMCPServer {
   }
 
   private async createMilestone(args: {
-    owner: string;
+    owner?: string;
     repo: string;
     title: string;
     description?: string;
     due_on?: string;
   }) {
+    const owner = this.resolveOwner(args.owner);
     const { data: milestone } = await this.octokit.rest.issues.createMilestone({
-      owner: args.owner,
+      owner,
       repo: args.repo,
       title: args.title,
       description: args.description,
@@ -1530,13 +1627,14 @@ class GitHubMCPServer {
   }
 
   private async listCollaborators(args: {
-    owner: string;
+    owner?: string;
     repo: string;
     affiliation?: 'outside' | 'direct' | 'all';
     per_page?: number;
   }) {
+    const owner = this.resolveOwner(args.owner);
     const { data: collaborators } = await this.octokit.rest.repos.listCollaborators({
-      owner: args.owner,
+      owner,
       repo: args.repo,
       affiliation: args.affiliation || 'all',
       per_page: args.per_page || 30,
@@ -1562,13 +1660,14 @@ class GitHubMCPServer {
   }
 
   private async checkUserPermissions(args: {
-    owner: string;
+    owner?: string;
     repo: string;
     username: string;
   }) {
+    const owner = this.resolveOwner(args.owner);
     try {
       const { data: permission } = await this.octokit.rest.repos.getCollaboratorPermissionLevel({
-        owner: args.owner,
+        owner,
         repo: args.repo,
         username: args.username,
       });
@@ -1597,13 +1696,14 @@ class GitHubMCPServer {
   }
 
   private async assignIssue(args: {
-    owner: string;
+    owner?: string;
     repo: string;
     issue_number: number;
     assignees: string[];
   }) {
+    const owner = this.resolveOwner(args.owner);
     const { data: issue } = await this.octokit.rest.issues.addAssignees({
-      owner: args.owner,
+      owner,
       repo: args.repo,
       issue_number: args.issue_number,
       assignees: args.assignees,
@@ -1737,12 +1837,13 @@ class GitHubMCPServer {
   }
 
   private async listWorkflows(args: {
-    owner: string;
+    owner?: string;
     repo: string;
     per_page?: number;
   }) {
+    const owner = this.resolveOwner(args.owner);
     const { data: workflows } = await this.octokit.rest.actions.listRepoWorkflows({
-      owner: args.owner,
+      owner,
       repo: args.repo,
       per_page: args.per_page || 30,
     });
@@ -1768,14 +1869,15 @@ class GitHubMCPServer {
   }
 
   private async triggerWorkflow(args: {
-    owner: string;
+    owner?: string;
     repo: string;
     workflow_id: string;
     ref: string;
     inputs?: { [key: string]: unknown };
   }) {
+    const owner = this.resolveOwner(args.owner);
     await this.octokit.rest.actions.createWorkflowDispatch({
-      owner: args.owner,
+      owner,
       repo: args.repo,
       workflow_id: args.workflow_id,
       ref: args.ref,

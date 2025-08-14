@@ -87,11 +87,13 @@ Set your GitHub token as an environment variable:
 **For Personal Access Token:**
 ```bash
 export GITHUB_TOKEN=ghp_your_personal_access_token_here
+export OWNER=your_github_username_or_org  # Optional: set default owner
 ```
 
 **For GitHub App Installation Token:**
 ```bash
 export GITHUB_TOKEN=ghs_your_installation_token_here
+export OWNER=your_github_username_or_org  # Optional: set default owner
 ```
 
 Or create a `.env` file:
@@ -102,7 +104,14 @@ GITHUB_TOKEN=ghp_your_personal_access_token_here
 
 # OR GitHub App Installation Token (starts with ghs_)
 GITHUB_TOKEN=ghs_your_installation_token_here
+
+# Optional: Default owner for repository operations
+OWNER=your_github_username_or_org
 ```
+
+**Environment Variables:**
+- `GITHUB_TOKEN` (required): Your GitHub authentication token
+- `OWNER` (optional): Default repository owner/organization name
 
 **Note**: The MCP server automatically detects the token type. Both Personal Access Tokens and GitHub App Installation Tokens work seamlessly.
 
@@ -117,16 +126,51 @@ Add to your MCP client configuration:
       "command": "npx",
       "args": ["@skhatri/github-mcp"],
       "env": {
-        "GITHUB_TOKEN": "your_github_token_here"
+        "GITHUB_TOKEN": "your_github_token_here",
+        "OWNER": "your_github_username_or_org"
       }
     }
   }
 }
 ```
 
+**Configuration Options:**
+- `GITHUB_TOKEN`: Required GitHub authentication token
+- `OWNER`: Optional default owner/organization name. When set, you can omit the `owner` parameter from tool calls
+
 ## Available Tools
 
-**Total: 31 tools covering the complete GitHub workflow**
+**Total: 32 tools covering the complete GitHub workflow**
+
+### Owner Parameter Behavior
+
+All repository-related tools support flexible owner parameter handling:
+
+1. **Explicit owner**: Provide `owner` parameter in tool calls
+   ```javascript
+   // Always works regardless of environment configuration
+   await mcp.callTool('list_pull_requests', {
+     owner: 'facebook',
+     repo: 'react'
+   });
+   ```
+
+2. **Default owner from environment**: Set `OWNER` environment variable and omit owner parameter
+   ```javascript
+   // Works when OWNER env var is set to 'myorg'
+   await mcp.callTool('list_pull_requests', {
+     repo: 'myrepo'  // owner defaults to OWNER env var
+   });
+   ```
+
+3. **Fallback behavior**: 
+   - If `owner` is provided → use provided owner
+   - If `owner` is omitted but `OWNER` env var is set → use `OWNER` env var
+   - If both are missing → error: "Owner parameter is required"
+
+This allows you to configure a default organization/user and avoid repeating the owner parameter for every call, while still supporting explicit owner specification when needed.
+
+**Note**: All repository-related tools listed below now have **optional** `owner` parameters. If `OWNER` environment variable is set, the `owner` parameter can be omitted from tool calls.
 
 ### Pull Request Management
 
@@ -134,26 +178,50 @@ Add to your MCP client configuration:
 List pull requests for a repository.
 
 **Parameters:**
-- `owner` (required): Repository owner
+- `owner` (optional): Repository owner (required if OWNER env var not set)
 - `repo` (required): Repository name
 - `state` (optional): Filter by state ('open', 'closed', 'all')
 - `per_page` (optional): Number of results (default: 30, max: 100)
 
-**Example:**
+**Examples:**
 ```json
+// With explicit owner
 {
   "owner": "microsoft",
   "repo": "vscode",
   "state": "open",
   "per_page": 10
 }
+
+// Without owner (uses OWNER env var)
+{
+  "repo": "myrepo",
+  "state": "open"
+}
 ```
+
+### `list_pull_requests_for_review`
+List pull requests that are assigned for review to the authenticated user.
+
+**Parameters:**
+- `state` (optional): Filter by state ('open', 'closed', 'all') - default: 'open'
+- `per_page` (optional): Number of results (default: 30, max: 100)
+
+**Example:**
+```json
+{
+  "state": "open",
+  "per_page": 20
+}
+```
+
+**Note**: This tool uses the authenticated user's token to find PRs where they are requested as a reviewer. No owner/repo parameters needed as it searches across all accessible repositories.
 
 ### `get_pull_request`
 Get detailed information about a specific pull request.
 
 **Parameters:**
-- `owner` (required): Repository owner
+- `owner` (optional): Repository owner (required if OWNER env var not set)
 - `repo` (required): Repository name  
 - `pull_number` (required): Pull request number
 
@@ -475,19 +543,47 @@ Manually trigger a GitHub Actions workflow.
 
 ### List Open Pull Requests
 ```javascript
-// List open PRs for a repository
+// With explicit owner
 await mcp.callTool('list_pull_requests', {
   owner: 'facebook',
   repo: 'react',
   state: 'open'
 });
+
+// Without owner (uses OWNER env var)
+await mcp.callTool('list_pull_requests', {
+  repo: 'react',
+  state: 'open'
+});
+```
+
+### List Pull Requests for Review
+```javascript
+// Get all PRs assigned for review to the authenticated user
+await mcp.callTool('list_pull_requests_for_review', {
+  state: 'open'
+});
+
+// Get recent review requests across all repositories
+await mcp.callTool('list_pull_requests_for_review', {
+  per_page: 10
+});
 ```
 
 ### Create a Pull Request
 ```javascript
-// Create a new PR
+// With explicit owner
 await mcp.callTool('create_pull_request', {
   owner: 'myorg',
+  repo: 'myrepo',
+  title: 'Add new feature',
+  head: 'feature-branch',
+  base: 'main',
+  body: 'This PR adds a new feature...'
+});
+
+// Without owner (uses OWNER env var set to 'myorg')
+await mcp.callTool('create_pull_request', {
   repo: 'myrepo',
   title: 'Add new feature',
   head: 'feature-branch',
@@ -498,9 +594,8 @@ await mcp.callTool('create_pull_request', {
 
 ### Add Review Comment
 ```javascript
-// Add a comment to a specific line
+// Simplified when OWNER env var is set
 await mcp.callTool('add_review_comment', {
-  owner: 'myorg',
   repo: 'myrepo',
   pull_number: 42,
   body: 'Consider using const instead of let here',
@@ -512,9 +607,8 @@ await mcp.callTool('add_review_comment', {
 
 ### Approve Pull Request
 ```javascript
-// Approve a PR
+// Simplified when OWNER env var is set
 await mcp.callTool('approve_pull_request', {
-  owner: 'myorg',
   repo: 'myrepo',
   pull_number: 42,
   body: 'LGTM! Great work on this feature.'

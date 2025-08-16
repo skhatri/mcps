@@ -1,0 +1,59 @@
+{
+  "name": "@skhatri/generator-mcp",
+  "version": "0.2.2",
+  "description": "MCP (Model Context Protocol) server for generating random UUIDs, numbers, and strings",
+  "main": "dist/index.js",
+  "bin": {
+    "random-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "cp src/index.js dist/index.js && chmod +x dist/index.js",
+    "start": "node dist/index.js",
+    "start:stdio": "node dist/index.js",
+    "dev": "npm run build && node dist/index.js",
+    "dev:stdio": "npm run build && node dist/index.js",
+    "clean": "rm -rf dist",
+    "test": "echo \"Tests not implemented yet\"",
+    "test:watch": "echo \"Tests not implemented yet\"",
+    "test:coverage": "echo \"Tests not implemented yet\"",
+    "test:ci": "echo \"Tests not implemented yet\"",
+    "link:local": "npm run build && npm link",
+    "setup:cursor": "npm run build && npm link && echo 'Ready for Cursor! Use random-mcp command.'",
+    "test:server": "npm run build && node dist/index.js",
+    "publish": "npm publish"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "random",
+    "uuid",
+    "generator",
+    "testing"
+  ],
+  "author": "skhatri",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^20.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/skhatri/mcps.git",
+    "directory": "packages/random-mcp"
+  },
+  "homepage": "https://github.com/skhatri/mcps/tree/main/packages/random-mcp",
+  "bugs": {
+    "url": "https://github.com/skhatri/mcps/issues"
+  },
+  "files": [
+    "dist/",
+    "README.md",
+    "package.json"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

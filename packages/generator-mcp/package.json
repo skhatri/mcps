@@ -1,6 +1,6 @@
 {
   "name": "@skhatri/generator-mcp",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "MCP (Model Context Protocol) server for generating random UUIDs, numbers, and strings",
   "main": "dist/index.js",
   "bin": {

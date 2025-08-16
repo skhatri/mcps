@@ -1,6 +1,6 @@
 {
   "name": "@skhatri/maven-artifact-mcp",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "MCP Server for resolving Maven2 module versions with caching and logging",
   "main": "dist/index.js",
   "type": "module",

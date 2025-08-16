@@ -4,6 +4,7 @@
   "description": "MCP (Model Context Protocol) server for generating random UUIDs, numbers, and strings",
   "main": "dist/index.js",
   "bin": {
+    "generator-mcp": "dist/index.js",
     "random-mcp": "dist/index.js"
   },
   "scripts": {

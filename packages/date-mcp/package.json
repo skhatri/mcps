@@ -4,6 +4,9 @@
   "description": "MCP (Model Context Protocol) server for date and time operations",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "bin": {
+    "date-mcp": "dist/index.js"
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",

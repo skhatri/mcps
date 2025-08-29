@@ -1,4 +1,4 @@
-# @skhatri/random-mcp
+# @skhatri/generator-mcp
 
 A Model Context Protocol (MCP) server for generating random data including UUIDs, numbers, and strings.
 
@@ -11,7 +11,7 @@ A Model Context Protocol (MCP) server for generating random data including UUIDs
 ## Installation
 
 ```bash
-npm install -g @skhatri/random-mcp
+npm install -g @skhatri/generator-mcp
 ```
 
 ## Usage

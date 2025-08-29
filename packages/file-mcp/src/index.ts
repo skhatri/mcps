@@ -273,6 +273,41 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
+// Check for CLI arguments for help or version
+const args = process.argv.slice(2);
+if (args.includes('--help') || args.includes('-h')) {
+  console.log(`
+@skhatri/file-mcp v0.5.0
+
+A Model Context Protocol server for file operations.
+
+USAGE:
+    file-mcp [--help] [--version]
+
+TOOLS:
+    read_file         Read the contents of a file
+    write_file        Write content to a file
+    list_directory    List contents of a directory
+    create_directory  Create a new directory
+    delete_file       Delete a file
+
+EXAMPLES:
+    # Start the server (STDIO mode)
+    file-mcp
+
+    # Use with npx
+    npx @skhatri/file-mcp
+
+For more information, visit: https://github.com/skhatri/mcps/tree/main/packages/file-mcp
+`);
+  process.exit(0);
+}
+
+if (args.includes('--version') || args.includes('-v')) {
+  console.log('0.5.0');
+  process.exit(0);
+}
+
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);

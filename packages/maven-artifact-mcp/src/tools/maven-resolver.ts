@@ -9,7 +9,7 @@ import { cacheManager } from '../cache/cache-manager.js';
 import { httpClient } from '../http/http-client.js';
 
 export class MavenResolver {
-  private readonly baseUrl = 'https://search.maven.org/solrsearch/select';
+  private readonly baseUrl = 'https://repo1.maven.org/maven2';
   private readonly timeout: number;
 
   constructor(timeoutMs: number = 10000) {
@@ -67,29 +67,52 @@ export class MavenResolver {
     return 0;
   }
 
+  private buildMetadataUrl(groupId: string, artifactId: string): string {
+    const groupPath = groupId.replace(/\./g, '/');
+    return `${this.baseUrl}/${groupPath}/${artifactId}/maven-metadata.xml`;
+  }
+
+  private parseXmlVersions(xmlContent: string): { versions: string[], latest?: string, release?: string, lastUpdated?: string } {
+    // Simple XML parsing for maven-metadata.xml
+    const versionMatches = xmlContent.match(/<version>([^<]+)<\/version>/g);
+    const versions = versionMatches ? versionMatches.map(match => match.replace(/<\/?version>/g, '')) : [];
+    
+    const latestMatch = xmlContent.match(/<latest>([^<]+)<\/latest>/);
+    const releaseMatch = xmlContent.match(/<release>([^<]+)<\/release>/);
+    const lastUpdatedMatch = xmlContent.match(/<lastUpdated>([^<]+)<\/lastUpdated>/);
+    
+    const result: { versions: string[], latest?: string, release?: string, lastUpdated?: string } = { versions };
+    
+    if (latestMatch && latestMatch[1]) {
+      result.latest = latestMatch[1];
+    }
+    
+    if (releaseMatch && releaseMatch[1]) {
+      result.release = releaseMatch[1];
+    }
+    
+    if (lastUpdatedMatch && lastUpdatedMatch[1]) {
+      result.lastUpdated = lastUpdatedMatch[1];
+    }
+    
+    return result;
+  }
+
   private async getAllVersions(groupId: string, artifactId: string): Promise<string[]> {
-    const versionQuery = `g:${groupId} AND a:${artifactId}`;
+    const metadataUrl = this.buildMetadataUrl(groupId, artifactId);
     
     try {
-      const response = await httpClient.get(this.baseUrl, {
-        query: {
-          q: versionQuery,
-          rows: 50,
-          wt: 'json'
-        },
-        timeout: this.timeout
+      const response = await httpClient.get(metadataUrl, {
+        timeout: this.timeout,
+        headers: {
+          'Accept': 'application/xml'
+        }
       });
 
-      const versions: string[] = [];
-      if (response.data.response && response.data.response.docs) {
-        for (const doc of response.data.response.docs) {
-          if (doc.v) {
-            versions.push(doc.v);
-          }
-        }
-      }
+      const xmlContent = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+      const parsedData = this.parseXmlVersions(xmlContent);
       
-      return versions;
+      return parsedData.versions || [];
     } catch (error) {
       logger.logWarning(`Could not fetch all versions for ${groupId}:${artifactId}, falling back to latest only`);
       return [];
@@ -97,44 +120,43 @@ export class MavenResolver {
   }
 
   private async queryMavenApi(groupId: string, artifactId: string): Promise<VersionInfo> {
-    const query = `g:${groupId} AND a:${artifactId}`;
+    const metadataUrl = this.buildMetadataUrl(groupId, artifactId);
     
     try {
-      logger.logInfo(`Querying Maven API for ${groupId}:${artifactId}`);
+      logger.logInfo(`Querying Maven metadata for ${groupId}:${artifactId}`);
       
-      const response = await httpClient.get<MavenApiResponse>(this.baseUrl, {
-        query: {
-          q: query,
-          rows: 1,
-          wt: 'json'
-        },
-        timeout: this.timeout
+      const response = await httpClient.get(metadataUrl, {
+        timeout: this.timeout,
+        headers: {
+          'Accept': 'application/xml'
+        }
       });
 
-      const { data } = response;
+      const xmlContent = typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+      const parsedData = this.parseXmlVersions(xmlContent);
 
-      if (!data.response || !data.response.docs || data.response.docs.length === 0) {
-        throw new Error(`No artifacts found for ${groupId}:${artifactId}`);
+      if (!parsedData.versions || parsedData.versions.length === 0) {
+        throw new Error(`No versions found for ${groupId}:${artifactId}`);
       }
 
-             const artifact = data.response.docs[0];
-       if (!artifact || !artifact.latestVersion) {
-         throw new Error(`No version information available for ${groupId}:${artifactId}`);
-       }
+      // Use release version if available and stable, otherwise use latest
+      let latestVersion = parsedData.release || parsedData.latest || parsedData.versions[parsedData.versions.length - 1];
+      
+      if (!latestVersion) {
+        throw new Error(`No version information available for ${groupId}:${artifactId}`);
+      }
 
-       const latestVersion: string = artifact.latestVersion!;
-       const excludedVersions: string[] = [];
-       let finalVersion: string = latestVersion;
-       let finalTimestamp: number = artifact.timestamp;
+      const allVersions = parsedData.versions;
+      const excludedVersions: string[] = [];
+      let finalVersion: string = latestVersion;
 
       if (this.isStableVersion(latestVersion)) {
         finalVersion = latestVersion;
         logger.logInfo(`Latest version ${latestVersion} is stable for ${groupId}:${artifactId}`);
       } else {
         excludedVersions.push(latestVersion);
-        logger.logInfo(`Latest version ${latestVersion} is pre-release, fetching version history for ${groupId}:${artifactId}`);
+        logger.logInfo(`Latest version ${latestVersion} is pre-release, fetching stable versions for ${groupId}:${artifactId}`);
         
-        const allVersions = await this.getAllVersions(groupId, artifactId);
         const stableVersions = allVersions.filter(v => this.isStableVersion(v));
         
         if (stableVersions.length === 0) {
@@ -142,8 +164,8 @@ export class MavenResolver {
           throw new Error(`No stable versions found for ${groupId}:${artifactId}${excludedInfo}`);
         }
 
-                 stableVersions.sort((a, b) => this.compareVersions(b, a));
-         finalVersion = stableVersions[0]!;
+        stableVersions.sort((a, b) => this.compareVersions(b, a));
+        finalVersion = stableVersions[0]!;
         
         const unstableVersions = allVersions.filter(v => !this.isStableVersion(v));
         excludedVersions.push(...unstableVersions);
@@ -151,30 +173,48 @@ export class MavenResolver {
         logger.logInfo(`Found ${stableVersions.length} stable versions, using ${finalVersion} for ${groupId}:${artifactId}`);
       }
 
+      // Parse lastUpdated timestamp (format: yyyyMMddHHmmss)
+      let lastUpdatedISO = new Date().toISOString(); // Default to now
+      if (parsedData.lastUpdated && parsedData.lastUpdated.length >= 8) {
+        const timestamp = parsedData.lastUpdated;
+        const year = parseInt(timestamp.substring(0, 4));
+        const month = parseInt(timestamp.substring(4, 6)) - 1; // Month is 0-indexed
+        const day = parseInt(timestamp.substring(6, 8));
+        const hour = timestamp.length >= 10 ? parseInt(timestamp.substring(8, 10)) : 0;
+        const minute = timestamp.length >= 12 ? parseInt(timestamp.substring(10, 12)) : 0;
+        const second = timestamp.length >= 14 ? parseInt(timestamp.substring(12, 14)) : 0;
+        
+        lastUpdatedISO = new Date(year, month, day, hour, minute, second).toISOString();
+      }
+
       const result: VersionInfo = {
         latestVersion: finalVersion,
-        lastUpdated: new Date(finalTimestamp).toISOString(),
+        lastUpdated: lastUpdatedISO,
         repository: 'Maven Central'
       };
 
       if (excludedVersions.length > 0) {
         result.excludedVersions = [...new Set(excludedVersions)].slice(0, 10);
-        result.totalVersions = excludedVersions.length + 1;
+        result.totalVersions = allVersions.length;
       }
 
       return result;
       
     } catch (error: any) {
       if (error.code === 'ECONNABORTED') {
-        throw new Error(`Maven API timeout for ${groupId}:${artifactId}`);
+        throw new Error(`Maven metadata timeout for ${groupId}:${artifactId}`);
       }
       
       if (error.response) {
-        throw new Error(`Maven API error: ${error.response.status} ${error.response.statusText}`);
+        const status = error.response.status;
+        if (status === 404) {
+          throw new Error(`Artifact not found: ${groupId}:${artifactId}`);
+        }
+        throw new Error(`Maven metadata error: ${status} ${error.response.statusText}`);
       }
       
       if (error.request) {
-        throw new Error(`Maven API network error for ${groupId}:${artifactId}`);
+        throw new Error(`Maven metadata network error for ${groupId}:${artifactId}`);
       }
       
       throw error;

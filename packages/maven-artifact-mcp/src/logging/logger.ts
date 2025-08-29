@@ -28,7 +28,7 @@ export class Logger {
     const message = `${tool}(${paramString})`;
     const logEntry = this.createLogEntry('REQUEST', tool, message, params);
     
-    console.log(`[${logEntry.timestamp}] REQUEST: ${message}`);
+    console.error(`[${logEntry.timestamp}] REQUEST: ${message}`);
   }
 
   logResponse(tool: string, response: any): void {
@@ -40,7 +40,7 @@ export class Logger {
     }
     const logEntry = this.createLogEntry('RESPONSE', tool, responseString, response);
     
-    console.log(`[${logEntry.timestamp}] RESPONSE: ${tool} -> ${responseString}`);
+    console.error(`[${logEntry.timestamp}] RESPONSE: ${tool} -> ${responseString}`);
   }
 
   logError(tool: string, error: string, details?: any): void {
@@ -54,7 +54,7 @@ export class Logger {
   }
 
   logInfo(message: string): void {
-    console.log(`[${this.formatTimestamp()}] INFO: ${message}`);
+    console.error(`[${this.formatTimestamp()}] INFO: ${message}`);
   }
 
   logWarning(message: string): void {

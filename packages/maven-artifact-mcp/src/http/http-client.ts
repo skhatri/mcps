@@ -22,8 +22,7 @@ export class HttpClient {
   constructor() {
     this.baseHeaders = {
       'User-Agent': 'maven-version-mcp-server/1.0.0',
-      'Accept': 'application/json',
-      'Accept-Encoding': 'gzip, deflate'
+      'Accept': 'application/json'
     };
 
     this.dispatcher = this.createDispatcher();

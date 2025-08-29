@@ -611,7 +611,7 @@ describe('MavenResolver', () => {
         'https://search.maven.org/solrsearch/select',
         {
           query: {
-            q: 'g:"org.springframework" AND a:"spring-core"',
+            q: 'g:org.springframework AND a:spring-core',
             rows: 1,
             wt: 'json'
           },

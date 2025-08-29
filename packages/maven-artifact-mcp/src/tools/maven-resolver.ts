@@ -9,7 +9,7 @@ import { cacheManager } from '../cache/cache-manager.js';
 import { httpClient } from '../http/http-client.js';
 
 export class MavenResolver {
-  private readonly baseUrl = 'https://search.maven.org/classic/solrsearch/select';
+  private readonly baseUrl = 'https://search.maven.org/solrsearch/select';
   private readonly timeout: number;
 
   constructor(timeoutMs: number = 10000) {

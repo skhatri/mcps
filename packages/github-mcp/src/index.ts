@@ -196,7 +196,7 @@ class GitHubMCPServer {
           },
           {
             name: 'add_review_comment',
-            description: 'Add a review comment to a pull request',
+            description: 'Add an inline review comment to a pull request at a specific file and line. Use side="LEFT" for deleted lines (red in diff), side="RIGHT" (default) for added or unchanged lines.',
             inputSchema: {
               type: 'object',
               properties: {
@@ -218,18 +218,37 @@ class GitHubMCPServer {
                 },
                 commit_id: {
                   type: 'string',
-                  description: 'SHA of commit to comment on',
+                  description: 'SHA of the commit to comment on',
                 },
                 path: {
                   type: 'string',
-                  description: 'File path for line comment',
+                  description: 'Relative file path to comment on',
                 },
                 line: {
                   type: 'number',
-                  description: 'Line number for comment (1-based)',
+                  description: 'Line number in the file to comment on. Required unless subject_type is "file". For multi-line comments, this is the last line of the range.',
+                },
+                side: {
+                  type: 'string',
+                  enum: ['LEFT', 'RIGHT'],
+                  description: 'Side of the diff to comment on. Use LEFT for deleted lines (red), RIGHT for added or unchanged lines (green/white). Defaults to RIGHT.',
+                },
+                start_line: {
+                  type: 'number',
+                  description: 'First line of a multi-line comment range. Required when commenting on more than one line.',
+                },
+                start_side: {
+                  type: 'string',
+                  enum: ['LEFT', 'RIGHT'],
+                  description: 'Side of the diff for the start of a multi-line comment. Required when start_line is set.',
+                },
+                subject_type: {
+                  type: 'string',
+                  enum: ['line', 'file'],
+                  description: 'Level of the comment: "line" (default, requires line) or "file" (file-level comment, line not required)',
                 },
               },
-              required: ['repo', 'pull_number', 'body', 'commit_id', 'path', 'line'],
+              required: ['repo', 'pull_number', 'body', 'commit_id', 'path'],
             },
           },
           {
@@ -661,6 +680,74 @@ class GitHubMCPServer {
               required: ['repo', 'workflow_id', 'ref'],
             },
           },
+          {
+            name: 'list_discussions',
+            description: 'List discussions for a repository',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                owner: { type: 'string', description: 'Repository owner (optional if OWNER env var is set)' },
+                repo: { type: 'string', description: 'Repository name' },
+                first: { type: 'number', description: 'Number of discussions to return (max 100)', default: 20 },
+                after: { type: 'string', description: 'Cursor for pagination' },
+                category_name: { type: 'string', description: 'Filter by category name (e.g. "General", "Q&A")' },
+              },
+              required: ['repo'],
+            },
+          },
+          {
+            name: 'get_discussion',
+            description: 'Get a discussion with its comments by discussion number',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                owner: { type: 'string', description: 'Repository owner (optional if OWNER env var is set)' },
+                repo: { type: 'string', description: 'Repository name' },
+                number: { type: 'number', description: 'Discussion number' },
+              },
+              required: ['repo', 'number'],
+            },
+          },
+          {
+            name: 'create_discussion',
+            description: 'Create a new discussion in a repository',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                owner: { type: 'string', description: 'Repository owner (optional if OWNER env var is set)' },
+                repo: { type: 'string', description: 'Repository name' },
+                category_name: { type: 'string', description: 'Discussion category name (e.g. "General", "Q&A", "Ideas")' },
+                title: { type: 'string', description: 'Discussion title' },
+                body: { type: 'string', description: 'Discussion body (markdown supported)' },
+              },
+              required: ['repo', 'category_name', 'title', 'body'],
+            },
+          },
+          {
+            name: 'add_discussion_comment',
+            description: 'Add a comment to a discussion',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                owner: { type: 'string', description: 'Repository owner (optional if OWNER env var is set)' },
+                repo: { type: 'string', description: 'Repository name' },
+                discussion_number: { type: 'number', description: 'Discussion number' },
+                body: { type: 'string', description: 'Comment body (markdown supported)' },
+              },
+              required: ['repo', 'discussion_number', 'body'],
+            },
+          },
+          {
+            name: 'answer_discussion',
+            description: 'Mark a comment as the answer to a Q&A discussion',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                comment_node_id: { type: 'string', description: 'Node ID of the comment to mark as answer (returned by add_discussion_comment or get_discussion)' },
+              },
+              required: ['comment_node_id'],
+            },
+          },
         ] as Tool[],
       };
     });
@@ -740,6 +827,16 @@ class GitHubMCPServer {
             return await this.listWorkflows(args as any);
           case 'trigger_workflow':
             return await this.triggerWorkflow(args as any);
+          case 'list_discussions':
+            return await this.listDiscussions(args as any);
+          case 'get_discussion':
+            return await this.getDiscussion(args as any);
+          case 'create_discussion':
+            return await this.createDiscussion(args as any);
+          case 'add_discussion_comment':
+            return await this.addDiscussionComment(args as any);
+          case 'answer_discussion':
+            return await this.answerDiscussion(args as any);
           default:
             throw new Error(`Unknown tool: ${name}`);
         }
@@ -935,7 +1032,11 @@ class GitHubMCPServer {
     body: string;
     commit_id: string;
     path: string;
-    line: number;
+    line?: number;
+    side?: 'LEFT' | 'RIGHT';
+    start_line?: number;
+    start_side?: 'LEFT' | 'RIGHT';
+    subject_type?: 'line' | 'file';
   }) {
     const owner = this.resolveOwner(args.owner);
     const { data: comment } = await this.octokit.rest.pulls.createReviewComment({
@@ -945,14 +1046,22 @@ class GitHubMCPServer {
       body: args.body,
       commit_id: args.commit_id,
       path: args.path,
-      line: args.line,
+      ...(args.line !== undefined && { line: args.line }),
+      ...(args.side && { side: args.side }),
+      ...(args.start_line !== undefined && { start_line: args.start_line }),
+      ...(args.start_side && { start_side: args.start_side }),
+      ...(args.subject_type && { subject_type: args.subject_type }),
     });
+
+    const location = args.subject_type === 'file'
+      ? args.path
+      : `${args.path}:${args.line}${args.side ? ` (${args.side})` : ''}`;
 
     return {
       content: [
         {
           type: 'text',
-          text: `Added review comment on ${args.path}:${args.line}\nComment ID: ${comment.id}\nURL: ${comment.html_url}`,
+          text: `Added review comment on ${location}\nComment ID: ${comment.id}\nURL: ${comment.html_url}`,
         },
       ],
     };
@@ -1891,6 +2000,256 @@ class GitHubMCPServer {
           text: `Triggered workflow: ${args.workflow_id}\nRef: ${args.ref}\nInputs: ${JSON.stringify(args.inputs || {}, null, 2)}`,
         },
       ],
+    };
+  }
+
+  private async graphqlRequest<T>(query: string, variables: Record<string, unknown>): Promise<T> {
+    const token = process.env.GITHUB_TOKEN!;
+    const response = await fetch('https://api.github.com/graphql', {
+      method: 'POST',
+      headers: {
+        'Authorization': `bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query, variables }),
+    });
+    const json = await response.json() as { data?: T; errors?: Array<{ message: string }> };
+    if (json.errors?.length) {
+      throw new Error(json.errors.map(e => e.message).join('; '));
+    }
+    return json.data as T;
+  }
+
+  private async listDiscussions(args: {
+    owner?: string;
+    repo: string;
+    first?: number;
+    after?: string;
+    category_name?: string;
+  }) {
+    const owner = this.resolveOwner(args.owner);
+    const first = args.first || 20;
+
+    // If filtering by category name, fetch the category ID first
+    let categoryId: string | undefined;
+    if (args.category_name) {
+      const catData = await this.graphqlRequest<{ repository: { discussionCategories: { nodes: Array<{ id: string; name: string }> } } }>(
+        `query($owner: String!, $repo: String!) {
+          repository(owner: $owner, name: $repo) {
+            discussionCategories(first: 25) { nodes { id name } }
+          }
+        }`,
+        { owner, repo: args.repo }
+      );
+      const cat = catData.repository.discussionCategories.nodes.find(
+        c => c.name.toLowerCase() === args.category_name!.toLowerCase()
+      );
+      if (!cat) throw new Error(`Discussion category "${args.category_name}" not found`);
+      categoryId = cat.id;
+    }
+
+    const data = await this.graphqlRequest<{
+      repository: {
+        discussions: {
+          pageInfo: { hasNextPage: boolean; endCursor: string };
+          nodes: Array<{
+            number: number; title: string; body: string;
+            author: { login: string } | null;
+            createdAt: string; updatedAt: string; url: string;
+            comments: { totalCount: number };
+            category: { name: string };
+            isAnswered: boolean;
+          }>;
+        };
+      };
+    }>(
+      `query($owner: String!, $repo: String!, $first: Int!, $after: String, $categoryId: ID) {
+        repository(owner: $owner, name: $repo) {
+          discussions(first: $first, after: $after, categoryId: $categoryId) {
+            pageInfo { hasNextPage endCursor }
+            nodes {
+              number title body author { login } createdAt updatedAt url
+              comments { totalCount }
+              category { name }
+              isAnswered
+            }
+          }
+        }
+      }`,
+      { owner, repo: args.repo, first, after: args.after || null, categoryId: categoryId || null }
+    );
+
+    const discussions = data.repository.discussions.nodes.map(d => ({
+      number: d.number,
+      title: d.title,
+      author: d.author?.login,
+      category: d.category.name,
+      isAnswered: d.isAnswered,
+      comments: d.comments.totalCount,
+      createdAt: d.createdAt,
+      updatedAt: d.updatedAt,
+      url: d.url,
+    }));
+
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          discussions,
+          pageInfo: data.repository.discussions.pageInfo,
+        }, null, 2),
+      }],
+    };
+  }
+
+  private async getDiscussion(args: { owner?: string; repo: string; number: number }) {
+    const owner = this.resolveOwner(args.owner);
+    const data = await this.graphqlRequest<{
+      repository: {
+        discussion: {
+          id: string; number: number; title: string; body: string;
+          author: { login: string } | null;
+          createdAt: string; updatedAt: string; url: string;
+          category: { id: string; name: string };
+          isAnswered: boolean; answerChosenAt: string | null;
+          comments: {
+            nodes: Array<{
+              id: string; body: string;
+              author: { login: string } | null;
+              createdAt: string; isAnswer: boolean;
+              replies: { nodes: Array<{ id: string; body: string; author: { login: string } | null; createdAt: string }> };
+            }>;
+          };
+        };
+      };
+    }>(
+      `query($owner: String!, $repo: String!, $number: Int!) {
+        repository(owner: $owner, name: $repo) {
+          discussion(number: $number) {
+            id number title body author { login }
+            createdAt updatedAt url
+            category { id name }
+            isAnswered answerChosenAt
+            comments(first: 50) {
+              nodes {
+                id body author { login } createdAt isAnswer
+                replies(first: 10) {
+                  nodes { id body author { login } createdAt }
+                }
+              }
+            }
+          }
+        }
+      }`,
+      { owner, repo: args.repo, number: args.number }
+    );
+
+    return {
+      content: [{ type: 'text', text: JSON.stringify(data.repository.discussion, null, 2) }],
+    };
+  }
+
+  private async createDiscussion(args: {
+    owner?: string;
+    repo: string;
+    category_name: string;
+    title: string;
+    body: string;
+  }) {
+    const owner = this.resolveOwner(args.owner);
+
+    // Fetch repo node ID and category ID
+    const repoData = await this.graphqlRequest<{
+      repository: { id: string; discussionCategories: { nodes: Array<{ id: string; name: string }> } };
+    }>(
+      `query($owner: String!, $repo: String!) {
+        repository(owner: $owner, name: $repo) {
+          id
+          discussionCategories(first: 25) { nodes { id name } }
+        }
+      }`,
+      { owner, repo: args.repo }
+    );
+
+    const category = repoData.repository.discussionCategories.nodes.find(
+      c => c.name.toLowerCase() === args.category_name.toLowerCase()
+    );
+    if (!category) {
+      const available = repoData.repository.discussionCategories.nodes.map(c => c.name).join(', ');
+      throw new Error(`Category "${args.category_name}" not found. Available: ${available}`);
+    }
+
+    const data = await this.graphqlRequest<{
+      createDiscussion: { discussion: { id: string; number: number; title: string; url: string } };
+    }>(
+      `mutation($repositoryId: ID!, $categoryId: ID!, $title: String!, $body: String!) {
+        createDiscussion(input: { repositoryId: $repositoryId, categoryId: $categoryId, title: $title, body: $body }) {
+          discussion { id number title url }
+        }
+      }`,
+      {
+        repositoryId: repoData.repository.id,
+        categoryId: category.id,
+        title: args.title,
+        body: args.body,
+      }
+    );
+
+    return {
+      content: [{ type: 'text', text: JSON.stringify(data.createDiscussion.discussion, null, 2) }],
+    };
+  }
+
+  private async addDiscussionComment(args: {
+    owner?: string;
+    repo: string;
+    discussion_number: number;
+    body: string;
+  }) {
+    const owner = this.resolveOwner(args.owner);
+
+    // Fetch discussion node ID from number
+    const idData = await this.graphqlRequest<{ repository: { discussion: { id: string } } }>(
+      `query($owner: String!, $repo: String!, $number: Int!) {
+        repository(owner: $owner, name: $repo) {
+          discussion(number: $number) { id }
+        }
+      }`,
+      { owner, repo: args.repo, number: args.discussion_number }
+    );
+
+    const data = await this.graphqlRequest<{
+      addDiscussionComment: {
+        comment: { id: string; body: string; author: { login: string } | null; createdAt: string; url: string };
+      };
+    }>(
+      `mutation($discussionId: ID!, $body: String!) {
+        addDiscussionComment(input: { discussionId: $discussionId, body: $body }) {
+          comment { id body author { login } createdAt url }
+        }
+      }`,
+      { discussionId: idData.repository.discussion.id, body: args.body }
+    );
+
+    return {
+      content: [{ type: 'text', text: JSON.stringify(data.addDiscussionComment.comment, null, 2) }],
+    };
+  }
+
+  private async answerDiscussion(args: { comment_node_id: string }) {
+    const data = await this.graphqlRequest<{
+      markDiscussionCommentAsAnswer: { discussion: { number: number; title: string; isAnswered: boolean } };
+    }>(
+      `mutation($id: ID!) {
+        markDiscussionCommentAsAnswer(input: { id: $id }) {
+          discussion { number title isAnswered }
+        }
+      }`,
+      { id: args.comment_node_id }
+    );
+
+    return {
+      content: [{ type: 'text', text: JSON.stringify(data.markDiscussionCommentAsAnswer.discussion, null, 2) }],
     };
   }
 

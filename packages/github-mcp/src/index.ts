@@ -1901,10 +1901,8 @@ class GitHubMCPServer {
   }
 }
 
-if (require.main === module) {
-  const server = new GitHubMCPServer();
-  server.run().catch((error) => {
-    console.error('Fatal error in main():', error);
-    process.exit(1);
-  });
-}
+const server = new GitHubMCPServer();
+server.run().catch((error) => {
+  console.error('Fatal error in main():', error);
+  process.exit(1);
+});

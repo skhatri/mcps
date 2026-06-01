@@ -11,7 +11,7 @@
  * Uses pure NDJSON framing for maximum compatibility with Java MCP clients.
  * 
  * @author skhatri
- * @version 0.2.2
+ * @version 0.2.3
  */
 
 const crypto = require('crypto');
@@ -119,7 +119,7 @@ class RandomMCPServer {
             },
             serverInfo: {
                 name: "Random MCP Server",
-                version: "0.2.2"
+                version: "0.2.3"
             }
         };
         
@@ -140,6 +140,20 @@ class RandomMCPServer {
         };
         this.sendResponse(id, result);
         this.log(`Sent ${this.tools.length} tools in response`);
+    }
+
+    toolResult(payload) {
+        const text = typeof payload === "string" ? payload : JSON.stringify(payload);
+        const result = {
+            content: [
+                { type: "text", text: text }
+            ],
+            isError: false
+        };
+        if (payload && typeof payload === "object") {
+            result.structuredContent = payload;
+        }
+        return result;
     }
 
     handleToolCall(id, params) {
@@ -203,14 +217,16 @@ class RandomMCPServer {
                     throw new Error(`Unknown tool: ${name}`);
             }
 
-            this.sendResponse(id, result);
+            this.sendResponse(id, this.toolResult(result));
             this.log(`Tool ${name} executed successfully`);
 
         } catch (error) {
             this.log(`Tool ${name} failed: ${error.message}`, 'error');
-            this.sendResponse(id, null, {
-                code: -32000,
-                message: error.message
+            this.sendResponse(id, {
+                content: [
+                    { type: "text", text: error.message }
+                ],
+                isError: true
             });
         }
     }
@@ -226,6 +242,7 @@ class RandomMCPServer {
                         this.handleInitialize(message.id, message.params);
                         break;
                     case "initialized":
+                    case "notifications/initialized":
                         this.handleInitialized(message.params);
                         break;
                     case "tools/list":
@@ -257,7 +274,7 @@ class RandomMCPServer {
     }
 
     start() {
-        this.log('Random MCP Server v0.2.2 starting...');
+        this.log('Random MCP Server v0.2.3 starting...');
         this.log('Using NDJSON framing (newline-delimited)');
         this.log('Available tools: generate_uuid, random_number, random_string');
         
@@ -305,7 +322,7 @@ class RandomMCPServer {
 const args = process.argv.slice(2);
 if (args.includes('--help') || args.includes('-h')) {
     console.log(`
-Random MCP Server v0.2.2
+Random MCP Server v0.2.3
 
 A Model Context Protocol server for generating random data.
 
@@ -333,7 +350,7 @@ For more information, visit: https://github.com/skhatri/mcps/tree/main/packages/
 }
 
 if (args.includes('--version') || args.includes('-v')) {
-    console.log('0.2.2');
+    console.log('0.2.3');
     process.exit(0);
 }
 

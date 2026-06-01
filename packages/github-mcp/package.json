@@ -1,6 +1,6 @@
 {
   "name": "@skhatri/github-mcp",
-  "version": "0.9.3",
+  "version": "0.11.1",
   "description": "MCP (Model Context Protocol) server for GitHub operations",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -15,8 +15,7 @@
     "test": "jest",
     "lint": "eslint src/**/*.ts",
     "clean": "rimraf dist",
-    "prepublishOnly": "npm run clean && npm run build",
-    "publish": "npm publish"
+    "prepublishOnly": "npm run clean && npm run build"
   },
   "files": [
     "dist/",
